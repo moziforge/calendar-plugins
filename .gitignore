@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Runtime credentials never enter the repository; only .env.example is tracked.
+.env
+.env.*
+!.env.example
