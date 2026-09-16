@@ -75,7 +75,7 @@ export function apply(ctx: Context): void {
 
   ctx.tools.register(defineTool({
     name: 'calendar_list_events',
-    description: 'List event occurrences inside a time window. Recurring events are expanded into one entry per occurrence, so a weekly meeting appears once per week in the range, and occurrences cancelled individually are omitted. Timed events report UTC instants plus the event\'s own IANA time zone in `timeZone`; all-day events report date-only `YYYY-MM-DD` values with `allDay: true` and an exclusive `end`. The window is capped at 366 days.',
+    description: 'List event occurrences inside a time window. Recurring events are expanded into one entry per occurrence, so a weekly meeting appears once per week in the range, and occurrences cancelled individually are omitted. An iCloud Reminders list is not a calendar: it stores no events, is skipped when every calendar is read, and naming it explicitly is rejected. Timed events report UTC instants plus the event\'s own IANA time zone in `timeZone`; all-day events report date-only `YYYY-MM-DD` values with `allDay: true` and an exclusive `end`. The window is capped at 366 days.',
     parameters: {
       start: { type: 'string', required: true, description: 'Inclusive window start as an ISO-8601 timestamp with an explicit offset, for example 2026-01-05T00:00:00+08:00 or 2026-01-04T16:00:00Z.' },
       end: { type: 'string', required: true, description: 'Exclusive window end in the same format as start. Must be after start, for example 2026-01-06T00:00:00+08:00.' },
@@ -88,12 +88,12 @@ export function apply(ctx: Context): void {
 
   ctx.tools.register(defineTool({
     name: 'calendar_create_event',
-    description: 'Create one event in an iCloud calendar. The format of start and end states the intent: two date-only values (2026-01-05) create an all-day event whose end date is exclusive, while two RFC3339 values with an explicit offset create a timed event. A timestamp without an offset is rejected because it would be interpreted in the host time zone. Pass `calendar` when more than one calendar is available, otherwise the target is ambiguous and the call fails.',
+    description: 'Create one event in an iCloud calendar that stores events; an iCloud Reminders list cannot receive one. The format of start and end states the intent: two date-only values (2026-01-05) create an all-day event whose end date is exclusive, while two RFC3339 values with an explicit offset create a timed event. A timestamp without an offset is rejected because it would be interpreted in the host time zone. Pass `calendar` when more than one calendar is available, otherwise the target is ambiguous and the call fails.',
     parameters: {
       summary: { type: 'string', required: true, description: 'Event title, for example "Design review".' },
       start: { type: 'string', required: true, description: 'Event start as 2026-01-05T09:00:00+08:00 for a timed event or 2026-01-05 for an all-day event.' },
       end: { type: 'string', required: true, description: 'Event end in the same format as start. For an all-day event this is exclusive: a single day is start=2026-01-05, end=2026-01-06. Events without an end are not supported, so always provide a real end.' },
-      calendar: { type: 'string', description: 'Target calendar name or id. Required when the account exposes more than one calendar to this agent.' },
+      calendar: { type: 'string', description: 'Target calendar name or id. Required when more than one event calendar is available to this agent.' },
       location: { type: 'string', description: 'Optional free-text location, for example "Room 3" or an address.' },
       description: { type: 'string', description: 'Optional longer notes for the event body.' },
     },

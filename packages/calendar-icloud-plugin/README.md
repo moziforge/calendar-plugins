@@ -90,9 +90,14 @@ ctx.calendar.createEvent({ summary, start, end, calendar?, location?, descriptio
   environment recovers on the next call without remounting.
 - **Requests.** One `calendar-query` REPORT per calendar per query; a listing is
   cached for five minutes. No automatic retries.
-- **Writes.** `createEvent` requires exactly one target calendar and a fresh
-  UUID-based UID, so a write can never overwrite an existing event. Timed events
-  are stored as UTC; all-day events as floating `VALUE=DATE`.
+- **Reminders lists.** iCloud publishes a Reminders list as a CalDAV collection
+  that accepts only `VTODO`. It is listed, so its `components` are visible, but it
+  is skipped by a broad read rather than spending a rate-limited request, and
+  naming it explicitly for reading or writing is rejected with that reason.
+- **Writes.** `createEvent` requires exactly one target calendar that accepts
+  `VEVENT` and a fresh UUID-based UID, so a write can never overwrite an existing
+  event or land in a collection that cannot hold it. Timed events are stored as
+  UTC; all-day events as floating `VALUE=DATE`.
 
 ## Dependencies
 

@@ -25,6 +25,10 @@
  *   `end` must be after `start`, and the span is capped at `MAX_WINDOW_MS`.
  *   The cap exists because a recurring series is expanded client-side, so an
  *   unbounded window would let one call expand years of a minutely rule.
+ * - Only collections that accept VEVENT are used. iCloud publishes a Reminders
+ *   list as a CalDAV collection whose component set is `VTODO`, so it can neither
+ *   be read for events nor written to; broad reads skip it instead of spending a
+ *   rate-limited request on it, and naming it explicitly is an error that says so.
  *
  * Example:
  * Input: `listEvents({ start: '2026-01-05T00:00:00+08:00', end:
@@ -208,8 +212,12 @@ export class CalendarService extends Service {
    * 2. Resolve the requested calendars against the config allowlist; a request
    *    naming a calendar outside the allowlist is rejected rather than ignored,
    *    because silently reading a different calendar would look like missing data.
-   * 3. Fetch each calendar and parse it with the window applied.
-   * 4. Sort, merge truncation reports, and cap the result at `limit` while still
+   * 3. Keep only collections that accept VEVENT. iCloud exposes a Reminders list
+   *    as a collection whose `supported-calendar-component-set` is `VTODO`, so
+   *    querying it can never return an event. Skipped silently when the caller
+   *    asked for "everything", rejected with that reason when the caller named it.
+   * 4. Fetch each calendar and parse it with the window applied.
+   * 5. Sort, merge truncation reports, and cap the result at `limit` while still
    *    reporting the untruncated `total`.
    *
    * External calls and effects: one `calendar-query` REPORT per selected
@@ -222,7 +230,7 @@ export class CalendarService extends Service {
   async listEvents(request: ListEventsRequest, signal?: AbortSignal): Promise<ListEventsResult> {
     const window = resolveWindow(request.start, request.end)
     const limit = resolveLimit(request.limit)
-    const calendars = await this.selectCalendars(request.calendars, signal)
+    const calendars = await this.selectCalendars(request.calendars, signal, true)
     const client = await this.connect(signal)
     const events: CalendarEvent[] = []
     const truncatedSeries: string[] = []
@@ -252,9 +260,11 @@ export class CalendarService extends Service {
    *    an all-day event, two offset-bearing RFC3339 values request a timed event,
    *    and a mixture is rejected. Inferring from the format keeps the caller from
    *    having to keep a separate boolean consistent with the strings.
-   * 3. Require exactly one target calendar: with several calendars configured
-   *    and none named, the write target is ambiguous, and guessing would put a
-   *    meeting somewhere the caller did not choose.
+   * 3. Require exactly one target calendar that accepts VEVENT: with several
+   *    calendars configured and none named, the write target is ambiguous, and
+   *    guessing would put a meeting somewhere the caller did not choose. A
+   *    Reminders list is excluded from the candidates because a VEVENT write
+   *    there can only fail, and the ambiguity message lists only real calendars.
    * 4. Serialize and PUT. The UID is a fresh UUID, so the resource name cannot
    *    collide with an existing event.
    *
@@ -272,9 +282,9 @@ export class CalendarService extends Service {
       throw new CalendarError('CALENDAR_INVALID_INPUT', 'summary must be a non-empty event title.')
     }
     const times = resolveEventTimes(request.start, request.end)
-    const calendars = await this.selectCalendars(request.calendar ? [request.calendar] : undefined, signal)
+    const calendars = await this.selectCalendars(request.calendar ? [request.calendar] : undefined, signal, true)
     if (calendars.length !== 1) {
-      throw new CalendarError('CALENDAR_INVALID_INPUT', `Creating an event needs exactly one target calendar, but ${calendars.length} matched. Pass the calendar name or id explicitly; available: ${calendars.map(calendar => calendar.name).join(', ')}.`)
+      throw new CalendarError('CALENDAR_INVALID_INPUT', `Creating an event needs exactly one target calendar, but ${calendars.length} matched. Pass the calendar name or id explicitly; available: ${calendars.map(calendar => calendar.name).join(', ') || '(none)'}.`)
     }
     const calendar = calendars[0]!
     const uid = `${randomUUID()}@moziforge.calendar`
@@ -299,23 +309,35 @@ export class CalendarService extends Service {
    * Logic:
    * 1. List calendars (possibly cached).
    * 2. Apply the config allowlist, which limits what this agent may read at all.
-   * 3. With no request, return every allowed calendar.
+   * 3. With no request, return every allowed calendar — or, when events are
+   *    required, every allowed calendar that accepts VEVENT. A broad read drops
+   *    the unusable ones silently, because a Reminders list is not part of
+   *    "everything with events" and querying it only spends a rate-limited request.
    * 4. Otherwise match each request against an id or a case-insensitive display
    *    name, reject unknown names, and reject a multi-match name so ambiguity is
    *    never resolved by guesswork.
+   * 5. When events are required and the caller named a calendar that cannot hold
+   *    them, reject it with that reason. The suggestion lists event-capable
+   *    calendars from the whole allowlist rather than from the current selection,
+   *    because the selection is exactly the unusable one named and would suggest
+   *    nothing useful.
    *
    * @param requested - names or ids from the tool call, or undefined for all.
    * @param signal - caller cancellation.
+   * @param requireEvents - whether only VEVENT-capable calendars may be returned.
    * @returns the selected calendars.
+   * @throws CalendarError `CALENDAR_UNKNOWN_CALENDAR` for unknown or ambiguous names,
+   *   and `CALENDAR_INVALID_INPUT` for an explicitly named calendar without VEVENT.
    */
-  private async selectCalendars(requested: string[] | undefined, signal?: AbortSignal): Promise<CalendarSummary[]> {
+  private async selectCalendars(requested: string[] | undefined, signal: AbortSignal | undefined, requireEvents: boolean): Promise<CalendarSummary[]> {
     const all = await this.listCalendars(signal)
     const allowed = this.config.calendars.length === 0 ? all : all.filter(calendar => this.config.calendars.some(entry => matches(calendar, entry)))
+    const eventCapable = allowed.filter(supportsEvents)
     if (!requested || requested.length === 0) {
-      if (allowed.length === 0) {
+      if ((requireEvents ? eventCapable : allowed).length === 0) {
         throw new CalendarError('CALENDAR_UNKNOWN_CALENDAR', this.config.calendars.length === 0 ? 'The account exposes no usable calendar collections.' : `The configured calendar allowlist (${this.config.calendars.join(', ')}) matches no calendar in the account. Available: ${all.map(calendar => calendar.name).join(', ')}.`)
       }
-      return allowed
+      return requireEvents ? eventCapable : allowed
     }
     const selected: CalendarSummary[] = []
     for (const entry of requested) {
@@ -327,6 +349,9 @@ export class CalendarService extends Service {
         throw new CalendarError('CALENDAR_UNKNOWN_CALENDAR', `"${entry}" matches ${matchesInAllowed.length} calendars (${matchesInAllowed.map(calendar => calendar.id).join(', ')}). Use the calendar id instead.`)
       }
       const found = matchesInAllowed[0]!
+      if (requireEvents && !supportsEvents(found)) {
+        throw new CalendarError('CALENDAR_INVALID_INPUT', `"${found.name}" (components: ${found.components.join(', ') || 'none reported'}) does not accept VEVENT, so it holds no events and cannot store one — an iCloud Reminders list is exposed as a calendar collection of VTODO items. Event-capable calendars: ${eventCapable.map(calendar => calendar.name).join(', ') || '(none)'}.`)
+      }
       if (!selected.some(calendar => calendar.id === found.id)) selected.push(found)
     }
     return selected
@@ -336,6 +361,27 @@ export class CalendarService extends Service {
 /** Whether a calendar answers to a name (case-insensitive) or an exact id. */
 function matches(calendar: CalendarSummary, entry: string): boolean {
   return calendar.id === entry || calendar.name.toLowerCase() === entry.trim().toLowerCase()
+}
+
+/**
+ * Reports whether a calendar can hold events.
+ *
+ * Logic: an empty `components` list means the server did not report a component
+ * set, which is treated as "unknown, so try it" rather than excluding a calendar
+ * that might work. A reported list is authoritative: iCloud reports `VTODO` for a
+ * Reminders list, and querying or writing events there can never succeed.
+ *
+ * Example:
+ * Input: `{ components: ['VTODO'] }` for the account's Reminders list.
+ * Process: the list is non-empty and does not contain `VEVENT`.
+ * Result: `false`, so the collection is skipped on a broad read and named in the
+ *   error when the caller targets it explicitly.
+ *
+ * @param calendar - a calendar summary.
+ * @returns whether the calendar should be used for event reads and writes.
+ */
+function supportsEvents(calendar: CalendarSummary): boolean {
+  return calendar.components.length === 0 || calendar.components.includes('VEVENT')
 }
 
 /**

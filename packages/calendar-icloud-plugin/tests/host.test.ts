@@ -38,6 +38,7 @@ import { startCaldavStub, type StubOptions, type StubServer } from './caldav-stu
 
 const HOME = '/123/calendars/home/'
 const WORK = '/123/calendars/work/'
+const REMINDERS = '/123/calendars/reminders/'
 
 const contexts: Context[] = []
 const stubs: StubServer[] = []
@@ -107,6 +108,8 @@ async function fixture(options: FixtureOptions = {}) {
     calendars: [
       { path: HOME, name: 'Home', description: 'Family', color: '#FF2968FF', timeZoneId: 'Asia/Shanghai' },
       { path: WORK, name: 'Work' },
+      // iCloud publishes a Reminders list as a collection that accepts only VTODO.
+      { path: REMINDERS, name: 'Reminders', components: ['VTODO'] },
     ],
     objects: SEEDED_OBJECTS,
     ...options.stub,
@@ -142,7 +145,7 @@ describe('discovery and listing', () => {
   it('lists calendars discovered through the .well-known redirect', async () => {
     const { service, stub } = await fixture()
     const calendars = await service.listCalendars()
-    expect(calendars.map(calendar => calendar.name)).toEqual(['Home', 'Work'])
+    expect(calendars.map(calendar => calendar.name)).toEqual(['Home', 'Work', 'Reminders'])
     expect(calendars[0]).toEqual({
       id: `http://127.0.0.1:${new URL(stub.url).port}${HOME}`,
       name: 'Home',
@@ -279,7 +282,7 @@ describe('credentials', () => {
     const { service } = await fixture({ password: 'wrong-pass' })
     expect((await caught(() => service.listCalendars())).code).toBe('CALENDAR_AUTH_FAILED')
     vi.stubEnv('ICLOUD_APP_PASSWORD', 'app-pass')
-    expect((await service.listCalendars()).map(calendar => calendar.name)).toEqual(['Home', 'Work'])
+    expect((await service.listCalendars()).map(calendar => calendar.name)).toEqual(['Home', 'Work', 'Reminders'])
     expect(service.status().lastError).toBeNull()
   })
 
@@ -358,6 +361,9 @@ describe('event creation', () => {
     const ambiguous = await caught(() => service.createEvent({ summary: 'Nowhere', start: '2026-01-05T09:00:00Z', end: '2026-01-05T10:00:00Z' }))
     expect(ambiguous.code).toBe('CALENDAR_INVALID_INPUT')
     expect(ambiguous.message).toContain('exactly one target calendar')
+    // The Reminders list can never accept the event, so it is not offered as a target.
+    expect(ambiguous.message).toContain('Home')
+    expect(ambiguous.message).not.toContain('Reminders')
     const blank = await caught(() => service.createEvent({ calendar: 'Home', summary: '   ', start: '2026-01-05T09:00:00Z', end: '2026-01-05T10:00:00Z' }))
     expect(blank.code).toBe('CALENDAR_INVALID_INPUT')
   })
@@ -370,13 +376,59 @@ describe('event creation', () => {
   })
 })
 
+describe('a collection that accepts only VTODO', () => {
+  it('is skipped by a broad read instead of costing a rate-limited request', async () => {
+    const { service, stub } = await fixture()
+    const result = await service.listEvents({ start: '2026-01-05T00:00:00Z', end: '2026-01-07T00:00:00Z' })
+    expect(result.calendars.map(calendar => calendar.name)).toEqual(['Home', 'Work'])
+    expect(stub.requestsOf('REPORT').map(request => request.path)).toEqual([HOME, WORK])
+  })
+
+  it('is still listed so a caller can see what the account contains', async () => {
+    const { service } = await fixture()
+    const calendars = await service.listCalendars()
+    expect(calendars.find(calendar => calendar.name === 'Reminders')?.components).toEqual(['VTODO'])
+  })
+
+  it('is rejected with the reason when named explicitly for reading', async () => {
+    const { service, stub } = await fixture()
+    const error = await caught(() => service.listEvents({ start: '2026-01-05T00:00:00Z', end: '2026-01-06T00:00:00Z', calendars: ['Reminders'] }))
+    expect(error.code).toBe('CALENDAR_INVALID_INPUT')
+    expect(error.message).toContain('VTODO')
+    expect(error.message).toContain('Home')
+    expect(stub.requestsOf('REPORT')).toHaveLength(0)
+  })
+
+  it('is rejected with the reason when named explicitly for writing', async () => {
+    const { service, stub } = await fixture()
+    const error = await caught(() => service.createEvent({ calendar: 'Reminders', summary: 'Buy milk', start: '2026-01-05T09:00:00Z', end: '2026-01-05T10:00:00Z' }))
+    expect(error.code).toBe('CALENDAR_INVALID_INPUT')
+    expect(error.message).toContain('VTODO')
+    expect(stub.puts).toHaveLength(0)
+  })
+
+  it('leaves exactly one candidate when it is the only non-event collection', async () => {
+    const { service, stub } = await fixture({
+      stub: {
+        calendars: [
+          { path: WORK, name: 'Work' },
+          { path: REMINDERS, name: 'Reminders', components: ['VTODO'] },
+        ],
+      },
+    })
+    const created = await service.createEvent({ summary: 'Launch day', start: '2026-01-05T09:00:00Z', end: '2026-01-05T10:00:00Z' })
+    expect(created.calendarName).toBe('Work')
+    expect(stub.puts).toHaveLength(1)
+  })
+})
+
 describe('status', () => {
   it('reports a configured, connected service after a successful call', async () => {
     const { service, stub } = await fixture()
     await service.listCalendars()
     const status = service.status()
     expect(status.connected).toBe(true)
-    expect(status.calendarCount).toBe(2)
+    expect(status.calendarCount).toBe(3)
     expect(status.configuration.configured).toBe(true)
     expect(status.configuration.passwordPresent).toBe(true)
     expect(status.configuration.serverUrl).toBe(stub.url)

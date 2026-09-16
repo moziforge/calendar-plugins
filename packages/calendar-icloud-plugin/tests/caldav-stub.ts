@@ -52,6 +52,13 @@ export interface StubCalendar {
   color?: string
   /** Default VTIMEZONE body; when set, a `TZID` is advertised. */
   timeZoneId?: string
+  /**
+   * Component kinds the collection advertises; defaults to `['VEVENT']`.
+   *
+   * iCloud exposes a Reminders list as a CalDAV collection that accepts only
+   * `VTODO`, which is why the plugin must be able to tell the two apart.
+   */
+  components?: string[]
 }
 
 /** One seeded calendar object resource. */
@@ -206,7 +213,7 @@ function collectionResponse(calendar: StubCalendar): string {
     + `<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>`
     + description + color + timezone
     + `<cs:getctag>ctag-1</cs:getctag>`
-    + `<c:supported-calendar-component-set><c:comp name="VEVENT"/></c:supported-calendar-component-set>`
+    + `<c:supported-calendar-component-set>${(calendar.components ?? ['VEVENT']).map(name => `<c:comp name="${escapeXml(name)}"/>`).join('')}</c:supported-calendar-component-set>`
     + `</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`
 }
 
