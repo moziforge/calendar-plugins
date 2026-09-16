@@ -1,19 +1,19 @@
 /**
- * Purpose: Publish the plugin's public entry points for a Harness preset.
+ * Purpose: Publish the plugin's public entry points for a DSH profile.
  *
- * High-level flow: a Host-plane preset mounts two modules from this package —
+ * High-level flow: a DSH profile mounts two plugin entries from this package —
  * `@moziforge/calendar-icloud-plugin/host` for the service and
  * `@moziforge/calendar-icloud-plugin/tools` for the model-facing tools. This
  * barrel re-exports both plus the vocabulary a consumer needs to type its own
  * integration, so callers never import a `dist/` path directly.
  *
  * Example:
- * Input: a preset row `name: '@moziforge/calendar-icloud-plugin/host'` with
+ * Input: a profile row `name: '@moziforge/calendar-icloud-plugin/host'` with
  *   `config: { account: 'me@example.com' }`.
  * Process: the loader resolves the `./host` export to `dist/host.js` and mounts
  *   the default-exported `CalendarService`.
- * Result: `ctx.calendar` and the three calendar tools are available to every
- *   agent in that deployment.
+ * Result: `ctx.calendar` and the four calendar tools are available to the
+ *   agents that profile covers.
  *
  * Architectural boundaries:
  * - Re-exports only; this module holds no logic of its own.

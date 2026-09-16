@@ -1,9 +1,21 @@
 {
   "name": "@moziforge/calendar-icloud-plugin",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "description": "iCloud Calendar (CalDAV) Host service and DSH tools for Mozi agents.",
+  "description": "DSH plugin that reads and writes Apple iCloud Calendar over CalDAV.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "caldav",
+    "icalendar",
+    "icloud",
+    "calendar"
+  ],
+  "license": "Apache-2.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
   "exports": {
     ".": "./dist/index.js",
     "./host": "./dist/host.js",
@@ -33,7 +45,6 @@
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   },
-  "license": "Apache-2.0",
   "files": [
     "dist",
     "README.md",

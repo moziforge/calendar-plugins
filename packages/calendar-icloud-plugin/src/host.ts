@@ -1,7 +1,7 @@
 /**
- * Purpose: Expose iCloud calendar reading and writing to the Host plane as a
- * cordis service (`ctx.calendar`), owning connection reuse, calendar caching,
- * window validation, and iCalendar construction.
+ * Purpose: Expose iCloud calendar reading and writing as a cordis service
+ * (`ctx.calendar`), owning connection reuse, calendar caching, window
+ * validation, and iCalendar construction.
  *
  * High-level flow:
  * 1. `listEvents` validates the window, resolves credentials lazily, connects
@@ -104,7 +104,7 @@ export interface CalendarStatus {
   lastError: string | null
 }
 
-export const name = 'moziforge-calendar-icloud-host'
+export const name = 'calendar-icloud-host'
 
 export const Config = ConfigSchema
 
@@ -287,7 +287,7 @@ export class CalendarService extends Service {
       throw new CalendarError('CALENDAR_INVALID_INPUT', `Creating an event needs exactly one target calendar, but ${calendars.length} matched. Pass the calendar name or id explicitly; available: ${calendars.map(calendar => calendar.name).join(', ') || '(none)'}.`)
     }
     const calendar = calendars[0]!
-    const uid = `${randomUUID()}@moziforge.calendar`
+    const uid = `${randomUUID()}@calendar-icloud-plugin`
     const iCalString = buildEventCalendar({ uid, summary, times, ...(request.location ? { location: request.location } : {}), ...(request.description ? { description: request.description } : {}) })
     const client = await this.connect(signal)
     const created = await client.createObject(calendar.id, `${uid}.ics`, iCalString, signal)
@@ -480,7 +480,7 @@ export function resolveEventTimes(start: string, end: string): EventTimes {
 export function buildEventCalendar(event: { uid: string; summary: string; times: EventTimes; location?: string; description?: string }): string {
   const vcalendar = new ICAL.Component(['vcalendar', [], []])
   vcalendar.updatePropertyWithValue('version', '2.0')
-  vcalendar.updatePropertyWithValue('prodid', '-//moziforge//calendar-icloud-plugin//EN')
+  vcalendar.updatePropertyWithValue('prodid', '-//calendar-icloud-plugin//EN')
   const vevent = new ICAL.Component('vevent')
   vevent.updatePropertyWithValue('uid', event.uid)
   vevent.updatePropertyWithValue('summary', event.summary)

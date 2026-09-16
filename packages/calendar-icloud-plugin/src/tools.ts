@@ -43,7 +43,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {} from './host.js'
 
-export const name = 'moziforge-calendar-icloud-tools'
+export const name = 'calendar-icloud-tools'
 
 export const inject = ['tools', 'calendar']
 

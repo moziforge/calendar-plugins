@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Private calendar plugin family for Mozi agents: provider-specific calendar integrations exposed as Host-plane DSH tools.",
+  "description": "DSH plugins that connect agents to calendar providers: one package per provider, sharing one normalized event vocabulary.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moziforge/calendar-plugins.git"
+  },
   "packageManager": "pnpm@12.4.2",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"

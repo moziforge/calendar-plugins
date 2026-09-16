@@ -1,14 +1,14 @@
 # Development rules
 
-This repository owns the **calendar** capability class for Mozi agents. Read each
-package's `README.md` and `AGENTS.md` before editing it.
+This repository holds DSH calendar plugins. Each package integrates one calendar
+provider. Read a package's `README.md` and `AGENTS.md` before editing it.
 
 ## Structure
 
 - One package per provider, named `@moziforge/calendar-<provider>-plugin`.
 - All packages speak the normalized vocabulary; a provider-only field must not
   leak into a tool schema. Extend the shared types deliberately instead.
-- The service and the tools are separate exports so a deployment can mount the
+- The service and the tools are separate exports so a profile can mount the
   capability without exposing it to a model.
 
 ## Secrets and runtime boundaries

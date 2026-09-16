@@ -316,7 +316,7 @@ describe('event creation', () => {
       description: 'Agenda in the doc',
     })
     expect(created.allDay).toBe(false)
-    expect(created.uid).toMatch(/@moziforge\.calendar$/)
+    expect(created.uid).toMatch(/@calendar-icloud-plugin$/)
     expect(created.url).toBe(`${new URL(stub.url).origin}${HOME}${created.uid}.ics`)
     expect(created.start).toBe('2026-01-05T01:00:00.000Z')
     expect(created.end).toBe('2026-01-05T02:00:00.000Z')

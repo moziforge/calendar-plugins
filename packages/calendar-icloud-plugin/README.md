@@ -1,7 +1,6 @@
 # @moziforge/calendar-icloud-plugin
 
-Reads and writes Apple iCloud Calendar over CalDAV and exposes it to a
-Mozi/Harness deployment.
+A DSH plugin that reads and writes Apple iCloud Calendar over CalDAV.
 
 ## Responsibility
 
@@ -9,13 +8,13 @@ Mozi/Harness deployment.
   discovery handshake.
 - Normalize iCloud's iCalendar payloads — recurring series, time zones, all-day
   values, cancellations — into one event shape.
-- Provide a Host-plane cordis service (`ctx.calendar`) and, separately, four
-  model-facing tools.
+- Provide a cordis service (`ctx.calendar`) and, separately, four model-facing
+  tools.
 - Hold the credential boundary: the app-specific password is read from the
   environment and never returned, logged, or embedded in an error.
 
-It does **not** own the Canvas plane, prompt text, caching across processes, or
-any calendar provider other than iCloud.
+It does **not** own prompt text, caching across processes, or any calendar
+provider other than iCloud.
 
 ## Entry points
 
@@ -136,3 +135,7 @@ app-specific password in CI. Verify manually by exporting credentials and callin
   ships no IANA database. The instant is exact; the stored zone name is not.
 - Only iCloud is implemented; the shared vocabulary is provider-neutral, but no
   second provider exercises it yet.
+
+## License
+
+Apache-2.0. See the [repository LICENSE](../../LICENSE).
