@@ -32,14 +32,14 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.2",
-    "@deepseek-ai/dsh-tools": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-util-values": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-util-values": "0.1.5-rc.2",
     "@deepseek-ai/schemastery": "3.18.2",
     "ical.js": "^2.2.1",
     "tsdav": "^2.3.3"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-llm": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
     "@types/node": "^24.3.0",
     "oxlint": "^1.12.0",
     "typescript": "^5.9.2",
